@@ -18,6 +18,7 @@
 #include "absl/strings/match.h"
 #include "udpa/annotations/sensitive.pb.h"
 #include "udpa/annotations/status.pb.h"
+#include "validate/validate.h"
 #include "xds/annotations/v3/status.pb.h"
 #include "yaml-cpp/yaml.h"
 
@@ -466,7 +467,7 @@ public:
     // PGV verification is itself recursive up to the point at which it hits an Any message. As
     // such, to avoid N^2 checking of the tree, we only perform an additional check at the point
     // at which PGV would have stopped because it does not itself check within Any messages.
-    if (was_any_or_top_level && !pgv::Validator<Protobuf::Message>::CheckMessage(message, &err)) {
+    if (was_any_or_top_level && !pgv::BaseValidator::AbstractCheckMessage(message, &err)) {
       ProtoExceptionUtil::throwProtoValidationException(err, message);
     }
   }

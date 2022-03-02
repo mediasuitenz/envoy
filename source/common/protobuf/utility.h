@@ -15,7 +15,6 @@
 #include "source/common/singleton/const_singleton.h"
 
 #include "absl/strings/str_join.h"
-#include "validate/validate.h"
 
 // Obtain the value of a wrapped field (e.g. google.protobuf.UInt32Value) if set. Otherwise, return
 // the default value.
@@ -315,7 +314,7 @@ public:
     // done as a separate PR. This change will also allow removing templating from most/all of
     // related functions.
     std::string err;
-    if (!pgv::Validator<MessageType>::CheckMessage(message, &err)) {
+    if (!Validate(message, &err)) {
       ProtoExceptionUtil::throwProtoValidationException(err, message);
     }
   }
