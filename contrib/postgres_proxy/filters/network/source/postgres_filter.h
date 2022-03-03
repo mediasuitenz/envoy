@@ -133,7 +133,7 @@ private:
   Buffer::OwnedImpl frontend_buffer_;
   Buffer::OwnedImpl backend_buffer_;
   std::unique_ptr<Decoder> decoder_;
-  bool encrypted;
+  bool encrypted{false};
 };
 
 } // namespace PostgresProxy
