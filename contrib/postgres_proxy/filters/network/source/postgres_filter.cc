@@ -35,11 +35,17 @@ Network::FilterStatus PostgresFilter::onData(Buffer::Instance& data, bool) {
   if (result == Network::FilterStatus::StopIteration) {
     ASSERT(frontend_buffer_.length() == 0);
     data.drain(data.length());
+    if (encrypted) {
+      read_callbacks_->connection().close(Network::ConnectionCloseType::NoFlush);
+    }
   }
   return result;
 }
 
-Network::FilterStatus PostgresFilter::onNewConnection() { return Network::FilterStatus::Continue; }
+Network::FilterStatus PostgresFilter::onNewConnection() {
+  ENVOY_CONN_LOG(trace, "postgres_proxy: in onNewConnection", read_callbacks_->connection());
+  return Network::FilterStatus::Continue;
+}
 
 void PostgresFilter::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) {
   read_callbacks_ = &callbacks;
@@ -189,7 +195,17 @@ void PostgresFilter::processQuery(const std::string& sql) {
   }
 }
 
+bool PostgresFilter::isTerminateTLS() {
+  return config_->terminate_ssl_;
+}
+
+bool PostgresFilter::isTLS() {
+  return encrypted;
+}
+
 bool PostgresFilter::onSSLRequest() {
+  ENVOY_CONN_LOG(trace, "postgres_proxy: entered onSSLRequest()",
+                       read_callbacks_->connection());
   if (!config_->terminate_ssl_) {
     // Signal to the decoder to continue.
     return true;
@@ -210,6 +226,7 @@ bool PostgresFilter::onSSLRequest() {
         read_callbacks_->connection().close(Network::ConnectionCloseType::NoFlush);
       } else {
         // Unsubscribe the callback.
+        encrypted = true;
         config_->stats_.sessions_terminated_ssl_.inc();
         ENVOY_CONN_LOG(trace, "postgres_proxy: enabled SSL termination.",
                        read_callbacks_->connection());

@@ -112,6 +112,8 @@ public:
   void incTransactionsRollback() override;
   void processQuery(const std::string&) override;
   bool onSSLRequest() override;
+  bool isTerminateTLS() override;
+  bool isTLS() override;
 
   Network::FilterStatus doDecode(Buffer::Instance& data, bool);
   DecoderPtr createDecoder(DecoderCallbacks* callbacks);
@@ -131,6 +133,7 @@ private:
   Buffer::OwnedImpl frontend_buffer_;
   Buffer::OwnedImpl backend_buffer_;
   std::unique_ptr<Decoder> decoder_;
+  bool encrypted;
 };
 
 } // namespace PostgresProxy
