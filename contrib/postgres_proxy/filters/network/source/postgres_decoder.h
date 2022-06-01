@@ -44,6 +44,8 @@ public:
   virtual void processQuery(const std::string&) PURE;
 
   virtual bool onSSLRequest() PURE;
+  virtual bool isTerminateTLS() PURE;
+  virtual bool isTLS() PURE;
 };
 
 // Postgres message decoder.

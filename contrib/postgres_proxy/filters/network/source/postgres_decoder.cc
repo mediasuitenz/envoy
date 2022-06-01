@@ -183,13 +183,16 @@ void DecoderImpl::initialize() {
    current decoder's state.
 */
 Decoder::Result DecoderImpl::onData(Buffer::Instance& data, bool frontend) {
+  ENVOY_LOG(trace, "postgres_proxy: onData() state_ {}", state_);
   switch (state_) {
   case State::InitState:
+    ENVOY_LOG(trace, "postgres_proxy: onData() -> onDataInit()");
     return onDataInit(data, frontend);
   case State::OutOfSyncState:
   case State::EncryptedState:
     return onDataIgnore(data, frontend);
   case State::InSyncState:
+    ENVOY_LOG(trace, "postgres_proxy: onData() -> onDataInSync()");
     return onDataInSync(data, frontend);
   default:
     PANIC("not implemented");
@@ -205,6 +208,7 @@ Decoder::Result DecoderImpl::onData(Buffer::Instance& data, bool frontend) {
    syntax is incorrect, the decoder will move to OutOfSyncState, in which messages are not parsed.
 */
 Decoder::Result DecoderImpl::onDataInit(Buffer::Instance& data, bool) {
+  ENVOY_LOG(trace, "in onDataInit()");
   ASSERT(state_ == State::InitState);
 
   // In Init state the minimum size of the message sufficient for parsing is 4 bytes.
@@ -254,6 +258,7 @@ Decoder::Result DecoderImpl::onDataInit(Buffer::Instance& data, bool) {
       // to terminate SSL session and SSLRequest should not be passed to the
       // server.
       encrypted_ = callbacks_->onSSLRequest();
+      ENVOY_LOG(trace, "postgres_proxy: encrypted_ {}", encrypted_);
     }
 
     // Count it as recognized frontend message.
@@ -262,6 +267,8 @@ Decoder::Result DecoderImpl::onDataInit(Buffer::Instance& data, bool) {
       ENVOY_LOG(trace, "postgres_proxy: detected encrypted traffic.");
       incSessionsEncrypted();
       state_ = State::EncryptedState;
+      ENVOY_LOG(trace, "postgres_proxy: detected encrypted state_ {}", state_);
+
     } else {
       result = Decoder::Result::Stopped;
       // Stay in InitState. After switch to SSL, another init packet will be sent.
@@ -269,6 +276,13 @@ Decoder::Result DecoderImpl::onDataInit(Buffer::Instance& data, bool) {
   } else {
     ENVOY_LOG(debug, "Detected version {}.{} of Postgres", code >> 16, code & 0x0000FFFF);
     state_ = State::InSyncState;
+  }
+
+  ENVOY_LOG(trace, "encrypted_ {}, terminateTLS {}, state_ {}", callbacks_->isTLS(), callbacks_->isTerminateTLS(), state_);
+  if (state_ == State::InSyncState && ! callbacks_->isTLS()) {
+    ENVOY_LOG(trace, "We Should not be here");
+    data.drain(message_len_);
+    return Decoder::Result::Stopped;
   }
 
   processMessageBody(data, FRONTEND, message_len_ - 4, first_, msgParser);
@@ -313,8 +327,7 @@ void DecoderImpl::processMessageBody(Buffer::Instance& data, absl::string_view d
   message boundaries.
 */
 Decoder::Result DecoderImpl::onDataInSync(Buffer::Instance& data, bool frontend) {
-  ENVOY_LOG(trace, "postgres_proxy: decoding {} bytes", data.length());
-
+  ENVOY_LOG(trace, "postgres_proxy: onDataInSync()");
   ENVOY_LOG(trace, "postgres_proxy: parsing message, len {}", data.length());
 
   // The minimum size of the message sufficient for parsing is 5 bytes.
@@ -325,6 +338,7 @@ Decoder::Result DecoderImpl::onDataInSync(Buffer::Instance& data, bool frontend)
 
   data.copyOut(0, 1, &command_);
   ENVOY_LOG(trace, "postgres_proxy: command is {}", command_);
+  ENVOY_LOG(trace, "postgres_proxy: state_: {}, command_: {}, isTerminateTLS: {}", state_, command_, callbacks_->isTerminateTLS());
 
   // The 1 byte message type and message length should be in the buffer
   // Find the message processor and validate the message syntax.
@@ -383,6 +397,7 @@ Decoder::Result DecoderImpl::onDataInSync(Buffer::Instance& data, bool frontend)
   decoder enters OutOfSyncState it cannot leave that state.
 */
 Decoder::Result DecoderImpl::onDataIgnore(Buffer::Instance& data, bool) {
+  ENVOY_LOG(trace, "postgres_proxy: onDataIgnore()");
   data.drain(data.length());
   return Decoder::Result::ReadyForNext;
 }
